@@ -58,13 +58,25 @@ class SolverWrapper(object):
         """
         net = self.solver.net
 
+        # set the default key
+        rfcn_bbox_key = 'rfcn_bbox'
+        rfcn_available = False
+
+        keys = net.params.keys()
+        # If a key starts with name rfcn_bbox
+        for key in keys:
+            if(key.find('rfcn_bbox') == 0):
+                rfcn_available = True
+                rfcn_bbox_key = key
+                break
+
         scale_bbox_params_faster_rcnn = (cfg.TRAIN.BBOX_REG and
                              cfg.TRAIN.BBOX_NORMALIZE_TARGETS and
                              net.params.has_key('bbox_pred'))
 
         scale_bbox_params_rfcn = (cfg.TRAIN.BBOX_REG and
                              cfg.TRAIN.BBOX_NORMALIZE_TARGETS and
-                             net.params.has_key('rfcn_bbox'))
+                             rfcn_available)
 
         scale_bbox_params_rpn = (cfg.TRAIN.RPN_NORMALIZE_TARGETS and
                                  net.params.has_key('rpn_bbox_pred'))
@@ -100,16 +112,16 @@ class SolverWrapper(object):
 
         if scale_bbox_params_rfcn:
             # save original values
-            orig_0 = net.params['rfcn_bbox'][0].data.copy()
-            orig_1 = net.params['rfcn_bbox'][1].data.copy()
+            orig_0 = net.params[rfcn_bbox_key][0].data.copy()
+            orig_1 = net.params[rfcn_bbox_key][1].data.copy()
             repeat = orig_1.shape[0] / self.bbox_means.shape[0]
 
             # scale and shift with bbox reg unnormalization; then save snapshot
-            net.params['rfcn_bbox'][0].data[...] = \
-                    (net.params['rfcn_bbox'][0].data *
+            net.params[rfcn_bbox_key][0].data[...] = \
+                    (net.params[rfcn_bbox_key][0].data *
                      np.repeat(self.bbox_stds, repeat).reshape((orig_1.shape[0], 1, 1, 1)))
-            net.params['rfcn_bbox'][1].data[...] = \
-                    (net.params['rfcn_bbox'][1].data *
+            net.params[rfcn_bbox_key][1].data[...] = \
+                    (net.params[rfcn_bbox_key][1].data *
                      np.repeat(self.bbox_stds, repeat) + np.repeat(self.bbox_means, repeat))
 
         infix = ('_' + cfg.TRAIN.SNAPSHOT_INFIX
@@ -126,8 +138,8 @@ class SolverWrapper(object):
             net.params['bbox_pred'][1].data[...] = orig_1
         if scale_bbox_params_rfcn:
             # restore net to original state
-            net.params['rfcn_bbox'][0].data[...] = orig_0
-            net.params['rfcn_bbox'][1].data[...] = orig_1
+            net.params[rfcn_bbox_key][0].data[...] = orig_0
+            net.params[rfcn_bbox_key][1].data[...] = orig_1
         if scale_bbox_params_rpn:
             # restore net to original state
             net.params['rpn_bbox_pred'][0].data[...] = rpn_orig_0
